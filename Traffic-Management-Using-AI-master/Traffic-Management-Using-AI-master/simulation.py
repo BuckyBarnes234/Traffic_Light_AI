@@ -302,11 +302,11 @@ class Vehicle(pygame.sprite.Sprite):
 def initialize():
     ts1 = TrafficSignal(0, defaultYellow, defaultGreen, defaultMinimum, defaultMaximum)
     signals.append(ts1)
-    ts2 = TrafficSignal(ts1.red+ts1.yellow+ts1.green, defaultYellow, defaultGreen, defaultMinimum, defaultMaximum)
+    ts2 = TrafficSignal(ts1.red + ts1.yellow + ts1.green, defaultYellow, defaultGreen, defaultMinimum, defaultMaximum)
     signals.append(ts2)
-    ts3 = TrafficSignal(defaultRed, defaultYellow, defaultGreen, defaultMinimum, defaultMaximum)
+    ts3 = TrafficSignal(ts2.red + ts2.yellow + ts2.green, defaultYellow, defaultGreen, defaultMinimum, defaultMaximum)
     signals.append(ts3)
-    ts4 = TrafficSignal(defaultRed, defaultYellow, defaultGreen, defaultMinimum, defaultMaximum)
+    ts4 = TrafficSignal(ts3.red + ts3.yellow + ts3.green, defaultYellow, defaultGreen, defaultMinimum, defaultMaximum)
     signals.append(ts4)
 
 # Set time according to formula
@@ -412,40 +412,28 @@ def repeat():
     repeat()    
 
 # Print the signal timers on cmd
-def printStatus():                                                                                           
-	for i in range(0, noOfSignals):
-		if(i==currentGreen):
-			if(currentYellow==0):
-				print(" GREEN TS",i+1,"-> r:",signals[i].red," y:",signals[i].yellow," g:",signals[i].green)
-			else:
-				print("YELLOW TS",i+1,"-> r:",signals[i].red," y:",signals[i].yellow," g:",signals[i].green)
-		else:
-			print("   RED TS",i+1,"-> r:",signals[i].red," y:",signals[i].yellow," g:",signals[i].green)
-	print()
+def printStatus():
+    for i in range(0, noOfSignals):
+        if(i == currentGreen):
+            if(currentYellow == 0):
+                print(" GREEN TS", i + 1, "-> r:", signals[i].red, " y:", signals[i].yellow, " g:", signals[i].green)
+            else:
+                print("YELLOW TS", i + 1, "-> r:", signals[i].red, " y:", signals[i].yellow, " g:", signals[i].green)
+        else:
+            print("   RED TS", i + 1, "-> r:", signals[i].red, " y:", signals[i].yellow, " g:", signals[i].green)
+    print()
 
 # Update values of the signal timers after every second
 def updateValues():
     for i in range(0, noOfSignals):
-        if(i==currentGreen):
-            if(currentYellow==0):
-                signals[i].green-=1
-                signals[i].totalGreenTime+=1
+        if(i == currentGreen):
+            if(currentYellow == 0):
+                signals[i].green -= 1
+                signals[i].totalGreenTime += 1
             else:
-                signals[i].yellow-=1
+                signals[i].yellow -= 1
         else:
-            signals[i].red-=1
-    
-    # Add web interface update
-    try:
-        web_interface.update_simulation_data(
-            signals=signals,
-            vehicles=vehicles,
-            timeElapsed=timeElapsed,
-            currentGreen=currentGreen,
-            currentYellow=currentYellow
-        )
-    except Exception as e:
-        print(f"Error updating web interface: {str(e)}")
+            signals[i].red -= 1
 
 # Generating vehicles in the simulation
 def generateVehicles():
