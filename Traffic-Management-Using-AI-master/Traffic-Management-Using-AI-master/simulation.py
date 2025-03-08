@@ -6,11 +6,11 @@
 # Distribution using python class
 
 # *** IMAGE XY COOD IS TOP LEFT
-import numpy as np
 import random
 import math
 import time
 import threading
+# from vehicle_detection import detection
 import pygame
 import sys
 import os
@@ -28,7 +28,6 @@ from server import app
 # tfnet=TFNet(options)    #READ ABOUT TFNET
 
 # Default values of signal times
-# Global Variables
 defaultRed = 100
 defaultYellow = 5
 defaultGreen = 10
@@ -37,12 +36,12 @@ defaultMaximum = 60
 
 signals = []
 noOfSignals = 4
-simTime = 400
+simTime = 400       # change this to change time of simulation
 timeElapsed = 0
 
-currentGreen = 0
-nextGreen = (currentGreen+1) % noOfSignals
-currentYellow = 0
+currentGreen = 0   # Indicates which signal is green
+nextGreen = (currentGreen+1)%noOfSignals
+currentYellow = 0   # Indicates whether yellow signal is on or off 
 
 # Average times for vehicles to pass the intersection
 carTime = 2
@@ -62,7 +61,7 @@ noOfLanes = 2
 # Red signal time at which cars will be detected at a signal
 detectionTime = 5
 
-speeds = {'car':1, 'bus':0.8, 'truck':0.8, 'rickshaw':1, 'bike':1.5}  # average speeds of vehicles
+speeds = {'car':0.25, 'bus':0.2, 'truck':0.2, 'rickshaw':0.25, 'bike':0.35}  # reduced by 50%
 
 # Coordinates of start
 x = {'right':[0,0,0], 'down':[755,727,697], 'left':[1400,1400,1400], 'up':[602,627,657]}    
@@ -105,32 +104,6 @@ class TrafficSignal:
         self.maximum = maximum
         self.signalText = "30"
         self.totalGreenTime = 0
-
-class TrafficLightAgent:
-    def __init__(self, num_signals, num_actions):
-        self.num_signals = num_signals
-        self.num_actions = num_actions
-        self.q_table = np.zeros((num_signals, num_actions))
-        self.learning_rate = 0.1
-        self.discount_factor = 0.9
-        self.epsilon = 0.1  # Exploration rate
-
-    def choose_action(self, state):
-        if np.random.rand() < self.epsilon:
-            return np.random.randint(self.num_actions)
-        else:
-            return np.argmax(self.q_table[state])
-
-    def update_q_table(self, state, action, reward, next_state):
-        best_next_action = np.argmax(self.q_table[next_state])
-        q_update = reward + self.discount_factor * self.q_table[next_state][best_next_action]
-        self.q_table[state][action] = (1 - self.learning_rate) * self.q_table[state][action] + self.learning_rate * q_update
-
-    def get_signal_times(self):
-        return self.q_table
-
-# Initialize the AI agent
-agent = TrafficLightAgent(noOfSignals, 3)  # 3 actions: increase, decrease, or keep the green time
         
 class Vehicle(pygame.sprite.Sprite):
     def __init__(self, lane, vehicleClass, direction_number, direction, will_turn):
@@ -302,138 +275,125 @@ class Vehicle(pygame.sprite.Sprite):
 def initialize():
     ts1 = TrafficSignal(0, defaultYellow, defaultGreen, defaultMinimum, defaultMaximum)
     signals.append(ts1)
-    ts2 = TrafficSignal(ts1.red + ts1.yellow + ts1.green, defaultYellow, defaultGreen, defaultMinimum, defaultMaximum)
+    ts2 = TrafficSignal(ts1.red+ts1.yellow+ts1.green, defaultYellow, defaultGreen, defaultMinimum, defaultMaximum)
     signals.append(ts2)
-    ts3 = TrafficSignal(ts2.red + ts2.yellow + ts2.green, defaultYellow, defaultGreen, defaultMinimum, defaultMaximum)
+    ts3 = TrafficSignal(defaultRed, defaultYellow, defaultGreen, defaultMinimum, defaultMaximum)
     signals.append(ts3)
-    ts4 = TrafficSignal(ts3.red + ts3.yellow + ts3.green, defaultYellow, defaultGreen, defaultMinimum, defaultMaximum)
+    ts4 = TrafficSignal(defaultRed, defaultYellow, defaultGreen, defaultMinimum, defaultMaximum)
     signals.append(ts4)
+    repeat()
 
 # Set time according to formula
 def setTime():
     global noOfCars, noOfBikes, noOfBuses, noOfTrucks, noOfRickshaws, noOfLanes
     global carTime, busTime, truckTime, rickshawTime, bikeTime
-    os.system("say detecting vehicles, "+directionNumbers[(currentGreen+1)%noOfSignals])
-#    detection_result=detection(currentGreen,tfnet)
-#    greenTime = math.ceil(((noOfCars*carTime) + (noOfRickshaws*rickshawTime) + (noOfBuses*busTime) + (noOfBikes*bikeTime))/(noOfLanes+1))
-#    if(greenTime<defaultMinimum):
-#       greenTime = defaultMinimum
-#    elif(greenTime>defaultMaximum):
-#       greenTime = defaultMaximum
-    # greenTime = len(vehicles[currentGreen][0])+len(vehicles[currentGreen][1])+len(vehicles[currentGreen][2])
-    # noOfVehicles = len(vehicles[directionNumbers[nextGreen]][1])+len(vehicles[directionNumbers[nextGreen]][2])-vehicles[directionNumbers[nextGreen]]['crossed']
-    # print("no. of vehicles = ",noOfVehicles)
-    noOfCars, noOfBuses, noOfTrucks, noOfRickshaws, noOfBikes = 0,0,0,0,0
-    for j in range(len(vehicles[directionNumbers[nextGreen]][0])):
-        vehicle = vehicles[directionNumbers[nextGreen]][0][j]
-        if(vehicle.crossed==0):
-            vclass = vehicle.vehicleClass
-            # print(vclass)
-            noOfBikes += 1
-    for i in range(1,3):
-        for j in range(len(vehicles[directionNumbers[nextGreen]][i])):
-            vehicle = vehicles[directionNumbers[nextGreen]][i][j]
-            if(vehicle.crossed==0):
+
+    # Reset vehicle counts
+    noOfCars, noOfBuses, noOfTrucks, noOfRickshaws, noOfBikes = 0, 0, 0, 0, 0
+
+    # Count vehicles waiting at the next green signal
+    for lane in range(3):
+        for vehicle in vehicles[directionNumbers[nextGreen]][lane]:
+            if vehicle.crossed == 0:
                 vclass = vehicle.vehicleClass
-                # print(vclass)
-                if(vclass=='car'):
+                if vclass == 'car':
                     noOfCars += 1
-                elif(vclass=='bus'):
+                elif vclass == 'bus':
                     noOfBuses += 1
-                elif(vclass=='truck'):
+                elif vclass == 'truck':
                     noOfTrucks += 1
-                elif(vclass=='rickshaw'):
+                elif vclass == 'rickshaw':
                     noOfRickshaws += 1
-    # print(noOfCars)
-    greenTime = math.ceil(((noOfCars*carTime) + (noOfRickshaws*rickshawTime) + (noOfBuses*busTime) + (noOfTrucks*truckTime)+ (noOfBikes*bikeTime))/(noOfLanes+1))
-    # greenTime = math.ceil((noOfVehicles)/noOfLanes) 
-    print('Green Time: ',greenTime)
-    # if(greenTime<defaultMinimum):
-    #     greenTime = defaultMinimum
-    # elif(greenTime>defaultMaximum):
-    #     greenTime = defaultMaximum
-    greenTime = 30
-    # greenTime = random.randint(15,50)
-    signals[(currentGreen+1)%(noOfSignals)].green = greenTime
+                elif vclass == 'bike':
+                    noOfBikes += 1
 
-def adjust_signal_times():
-    global currentGreen, agent
-    state = currentGreen
-    action = agent.choose_action(state)
-    if action == 0:
-        signals[(currentGreen+1) % noOfSignals].green += 5
-    elif action == 1:
-        signals[(currentGreen+1) % noOfSignals].green -= 5
-    else:
-        pass  # Keep the green time as is
-    next_state = (currentGreen + 1) % noOfSignals
-    reward = get_reward()
-    agent.update_q_table(state, action, reward, next_state)
+    # Calculate green time based on vehicle count
+    greenTime = math.ceil(((noOfCars * carTime) + (noOfRickshaws * rickshawTime) + 
+                           (noOfBuses * busTime) + (noOfTrucks * truckTime) + 
+                           (noOfBikes * bikeTime)) / (noOfLanes + 1))
 
-def get_reward():
-    global vehicles, directionNumbers, currentGreen
-    reward = 0
-    for i in range(0, 3):
-        reward -= len(vehicles[directionNumbers[currentGreen]][i])
-    return reward
+    # Ensure green time is within bounds
+    if greenTime < defaultMinimum:
+        greenTime = defaultMinimum
+    elif greenTime > defaultMaximum:
+        greenTime = defaultMaximum
+
+    # Set the calculated green time for the next signal
+    signals[nextGreen].green = greenTime
+    print(f"Calculated Green Time for Signal {nextGreen + 1}: {greenTime}")
 
 def repeat():
     global currentGreen, currentYellow, nextGreen
-    while(signals[currentGreen].green > 0):   # while the timer of current green signal is not zero
+    while signals[currentGreen].green > 0:
+        # Check if there are no vehicles waiting at the current green signal
+        if all(len(vehicles[directionNumbers[currentGreen]][lane]) == 0 for lane in range(3)):
+            print(f"No vehicles at green signal {currentGreen + 1}, skipping...")
+            break  # Exit the loop to skip the green phase
+
         printStatus()
         updateValues()
-        if signals[(currentGreen+1) % noOfSignals].red == detectionTime:    # set time of next green signal
+        if signals[(currentGreen + 1) % noOfSignals].red == detectionTime:
             thread = threading.Thread(name="detection", target=setTime, args=())
             thread.daemon = True
             thread.start()
-            adjust_signal_times()
         time.sleep(0.84)
-    currentYellow = 1   # set yellow signal on
+
+    currentYellow = 1
     vehicleCountTexts[currentGreen] = "0"
-    # reset stop coordinates of lanes and vehicles 
     for i in range(0, 3):
         stops[directionNumbers[currentGreen]][i] = defaultStop[directionNumbers[currentGreen]]
         for vehicle in vehicles[directionNumbers[currentGreen]][i]:
             vehicle.stop = defaultStop[directionNumbers[currentGreen]]
-    while(signals[currentGreen].yellow > 0):  # while the timer of current yellow signal is not zero
+    while signals[currentGreen].yellow > 0:
         printStatus()
         updateValues()
         time.sleep(0.66)
-    currentYellow = 0   # set yellow signal off
+    currentYellow = 0
 
-    # reset all signal times of current signal to default times
     signals[currentGreen].green = defaultGreen
     signals[currentGreen].yellow = defaultYellow
     signals[currentGreen].red = defaultRed
 
-    currentGreen = nextGreen  # set next signal as green signal
-    nextGreen = (currentGreen+1) % noOfSignals    # set next green signal
-    signals[nextGreen].red = signals[currentGreen].yellow + signals[currentGreen].green    # set the red time of next to next signal as (yellow time + green time) of next signal
-    repeat()    
+    currentGreen = nextGreen
+    nextGreen = (currentGreen + 1) % noOfSignals
+    signals[nextGreen].red = signals[currentGreen].yellow + signals[currentGreen].green
+    repeat()
 
 # Print the signal timers on cmd
-def printStatus():
-    for i in range(0, noOfSignals):
-        if(i == currentGreen):
-            if(currentYellow == 0):
-                print(" GREEN TS", i + 1, "-> r:", signals[i].red, " y:", signals[i].yellow, " g:", signals[i].green)
-            else:
-                print("YELLOW TS", i + 1, "-> r:", signals[i].red, " y:", signals[i].yellow, " g:", signals[i].green)
-        else:
-            print("   RED TS", i + 1, "-> r:", signals[i].red, " y:", signals[i].yellow, " g:", signals[i].green)
-    print()
+def printStatus():                                                                                           
+	for i in range(0, noOfSignals):
+		if(i==currentGreen):
+			if(currentYellow==0):
+				print(" GREEN TS",i+1,"-> r:",signals[i].red," y:",signals[i].yellow," g:",signals[i].green)
+			else:
+				print("YELLOW TS",i+1,"-> r:",signals[i].red," y:",signals[i].yellow," g:",signals[i].green)
+		else:
+			print("   RED TS",i+1,"-> r:",signals[i].red," y:",signals[i].yellow," g:",signals[i].green)
+	print()
 
 # Update values of the signal timers after every second
 def updateValues():
     for i in range(0, noOfSignals):
-        if(i == currentGreen):
-            if(currentYellow == 0):
-                signals[i].green -= 1
-                signals[i].totalGreenTime += 1
+        if(i==currentGreen):
+            if(currentYellow==0):
+                signals[i].green-=1
+                signals[i].totalGreenTime+=1
             else:
-                signals[i].yellow -= 1
+                signals[i].yellow-=1
         else:
-            signals[i].red -= 1
+            signals[i].red-=1
+    
+    # Add web interface update
+    try:
+        web_interface.update_simulation_data(
+            signals=signals,
+            vehicles=vehicles,
+            timeElapsed=timeElapsed,
+            currentGreen=currentGreen,
+            currentYellow=currentYellow
+        )
+    except Exception as e:
+        print(f"Error updating web interface: {str(e)}")
 
 # Generating vehicles in the simulation
 def generateVehicles():
@@ -570,3 +530,5 @@ class Main:
         pygame.display.update()
 
 Main()
+
+  
