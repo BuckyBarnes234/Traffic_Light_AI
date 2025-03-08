@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Traffic Simulation Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f2f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .signals-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+        .signal {
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .red { background-color: #ffebee; }
+        .yellow { background-color: #fff3e0; }
+        .green { background-color: #e8f5e9; }
+        .vehicle-counts {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+        .count-item {
+            padding: 10px;
+            background-color: #e3f2fd;
+            border-radius: 8px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Traffic Simulation Dashboard</h1>
+            <h2>Time Elapsed: <span id="timeElapsed">0</span> seconds</h2>
+        </div>
+        
+        <div class="dashboard">
+            <div class="card">
+                <h3>Traffic Signals Status</h3>
+                <div class="signals-grid" id="signalsGrid">
+                    <!-- Signals will be populated here -->
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3>Vehicle Counts</h3>
+                <div class="vehicle-counts" id="vehicleCounts">
+                    <!-- Vehicle counts will be populated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function updateDashboard() {
+            fetch('http://localhost:5000/get_data')
+                .then(response => response.json())
+                .then(data => {
+                    // Update time elapsed
+                    document.getElementById('timeElapsed').textContent = data.timeElapsed;
+
+                    // Update signals
+                    const signalsGrid = document.getElementById('signalsGrid');
+                    signalsGrid.innerHTML = '';
+                    data.signals.forEach((signal, index) => {
+                        const signalDiv = document.createElement('div');
+                        signalDiv.className = `signal ${signal.status.toLowerCase()}`;
+                        signalDiv.innerHTML = `
+                            <h4>Signal ${index + 1}</h4>
+                            <p>Status: ${signal.status}</p>
+                            <p>Timer: ${signal.timer}</p>
+                        `;
+                        signalsGrid.appendChild(signalDiv);
+                    });
+
+                    // Update vehicle counts
+                    const vehicleCounts = document.getElementById('vehicleCounts');
+                    vehicleCounts.innerHTML = '';
+                    for (const [direction, count] of Object.entries(data.vehicleCounts)) {
+                        const countDiv = document.createElement('div');
+                        countDiv.className = 'count-item';
+                        countDiv.innerHTML = `
+                            <h4>${direction.toUpperCase()}</h4>
+                            <p>Vehicles: ${count}</p>
+                        `;
+                        vehicleCounts.appendChild(countDiv);
+                    }
+                });
+        }
+
+        // Update every second
+        setInterval(updateDashboard, 1000);
+        updateDashboard(); // Initial update
+    </script>
+</body>
+</html> 
