@@ -6,11 +6,11 @@
 # Distribution using python class
 
 # *** IMAGE XY COOD IS TOP LEFT
+import numpy as np
 import random
 import math
 import time
 import threading
-# from vehicle_detection import detection
 import pygame
 import sys
 import os
@@ -28,6 +28,7 @@ from server import app
 # tfnet=TFNet(options)    #READ ABOUT TFNET
 
 # Default values of signal times
+# Global Variables
 defaultRed = 100
 defaultYellow = 5
 defaultGreen = 10
@@ -36,12 +37,12 @@ defaultMaximum = 60
 
 signals = []
 noOfSignals = 4
-simTime = 400       # change this to change time of simulation
+simTime = 400
 timeElapsed = 0
 
-currentGreen = 0   # Indicates which signal is green
-nextGreen = (currentGreen+1)%noOfSignals
-currentYellow = 0   # Indicates whether yellow signal is on or off 
+currentGreen = 0
+nextGreen = (currentGreen+1) % noOfSignals
+currentYellow = 0
 
 # Average times for vehicles to pass the intersection
 carTime = 2
@@ -104,6 +105,32 @@ class TrafficSignal:
         self.maximum = maximum
         self.signalText = "30"
         self.totalGreenTime = 0
+
+class TrafficLightAgent:
+    def __init__(self, num_signals, num_actions):
+        self.num_signals = num_signals
+        self.num_actions = num_actions
+        self.q_table = np.zeros((num_signals, num_actions))
+        self.learning_rate = 0.1
+        self.discount_factor = 0.9
+        self.epsilon = 0.1  # Exploration rate
+
+    def choose_action(self, state):
+        if np.random.rand() < self.epsilon:
+            return np.random.randint(self.num_actions)
+        else:
+            return np.argmax(self.q_table[state])
+
+    def update_q_table(self, state, action, reward, next_state):
+        best_next_action = np.argmax(self.q_table[next_state])
+        q_update = reward + self.discount_factor * self.q_table[next_state][best_next_action]
+        self.q_table[state][action] = (1 - self.learning_rate) * self.q_table[state][action] + self.learning_rate * q_update
+
+    def get_signal_times(self):
+        return self.q_table
+
+# Initialize the AI agent
+agent = TrafficLightAgent(noOfSignals, 3)  # 3 actions: increase, decrease, or keep the green time
         
 class Vehicle(pygame.sprite.Sprite):
     def __init__(self, lane, vehicleClass, direction_number, direction, will_turn):
@@ -281,7 +308,6 @@ def initialize():
     signals.append(ts3)
     ts4 = TrafficSignal(defaultRed, defaultYellow, defaultGreen, defaultMinimum, defaultMaximum)
     signals.append(ts4)
-    repeat()
 
 # Set time according to formula
 def setTime():
@@ -329,40 +355,61 @@ def setTime():
     greenTime = 30
     # greenTime = random.randint(15,50)
     signals[(currentGreen+1)%(noOfSignals)].green = greenTime
-   
+
+def adjust_signal_times():
+    global currentGreen, agent
+    state = currentGreen
+    action = agent.choose_action(state)
+    if action == 0:
+        signals[(currentGreen+1) % noOfSignals].green += 5
+    elif action == 1:
+        signals[(currentGreen+1) % noOfSignals].green -= 5
+    else:
+        pass  # Keep the green time as is
+    next_state = (currentGreen + 1) % noOfSignals
+    reward = get_reward()
+    agent.update_q_table(state, action, reward, next_state)
+
+def get_reward():
+    global vehicles, directionNumbers, currentGreen
+    reward = 0
+    for i in range(0, 3):
+        reward -= len(vehicles[directionNumbers[currentGreen]][i])
+    return reward
+
 def repeat():
     global currentGreen, currentYellow, nextGreen
-    while(signals[currentGreen].green>0):   # while the timer of current green signal is not zero
+    while(signals[currentGreen].green > 0):   # while the timer of current green signal is not zero
         printStatus()
         updateValues()
-        if(signals[(currentGreen+1)%(noOfSignals)].red==detectionTime):    # set time of next green signal 
-            thread = threading.Thread(name="detection",target=setTime, args=())
+        if signals[(currentGreen+1) % noOfSignals].red == detectionTime:    # set time of next green signal
+            thread = threading.Thread(name="detection", target=setTime, args=())
             thread.daemon = True
             thread.start()
-            # setTime()
+            adjust_signal_times()
         time.sleep(0.84)
     currentYellow = 1   # set yellow signal on
     vehicleCountTexts[currentGreen] = "0"
     # reset stop coordinates of lanes and vehicles 
-    for i in range(0,3):
+    for i in range(0, 3):
         stops[directionNumbers[currentGreen]][i] = defaultStop[directionNumbers[currentGreen]]
         for vehicle in vehicles[directionNumbers[currentGreen]][i]:
             vehicle.stop = defaultStop[directionNumbers[currentGreen]]
-    while(signals[currentGreen].yellow>0):  # while the timer of current yellow signal is not zero
+    while(signals[currentGreen].yellow > 0):  # while the timer of current yellow signal is not zero
         printStatus()
         updateValues()
         time.sleep(0.66)
     currentYellow = 0   # set yellow signal off
-    
+
     # reset all signal times of current signal to default times
     signals[currentGreen].green = defaultGreen
     signals[currentGreen].yellow = defaultYellow
     signals[currentGreen].red = defaultRed
-       
-    currentGreen = nextGreen # set next signal as green signal
-    nextGreen = (currentGreen+1)%noOfSignals    # set next green signal
-    signals[nextGreen].red = signals[currentGreen].yellow+signals[currentGreen].green    # set the red time of next to next signal as (yellow time + green time) of next signal
-    repeat()     
+
+    currentGreen = nextGreen  # set next signal as green signal
+    nextGreen = (currentGreen+1) % noOfSignals    # set next green signal
+    signals[nextGreen].red = signals[currentGreen].yellow + signals[currentGreen].green    # set the red time of next to next signal as (yellow time + green time) of next signal
+    repeat()    
 
 # Print the signal timers on cmd
 def printStatus():                                                                                           
@@ -535,5 +582,3 @@ class Main:
         pygame.display.update()
 
 Main()
-
-  
